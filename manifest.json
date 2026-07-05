@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Talenta Timesheet Helper (Personal)",
+  "version": "0.1.0",
+  "description": "Isi timesheet Talenta otomatis dari template Excel. Untuk penggunaan personal.",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://hr.talenta.co/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Talenta Timesheet Helper"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://hr.talenta.co/*"],
+      "js": ["content-script/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

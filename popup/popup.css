@@ -1,0 +1,150 @@
+* { box-sizing: border-box; }
+
+body {
+  width: 460px;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #1a1a1a;
+  background: #f7f8fa;
+}
+
+.app { padding: 16px; }
+
+header h1 { font-size: 16px; margin: 0 0 2px; }
+header .subtitle { font-size: 12px; color: #666; margin: 0 0 16px; }
+
+.card {
+  background: #fff;
+  border: 1px solid #e2e4e8;
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.card.hidden { display: none; }
+
+.card-title {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.hint {
+  font-size: 12px;
+  color: #666;
+  margin: 4px 0 8px;
+}
+
+.hint code {
+  background: #eef0f3;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.status {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.status-pending { background: #f1f2f4; color: #555; }
+.status-ok { background: #e6f7ed; color: #0a7a3d; }
+.status-error { background: #fdecea; color: #b3261e; }
+
+.btn {
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-secondary { background: #eef0f3; color: #1a1a1a; }
+.btn-secondary:hover { background: #e2e4e8; }
+
+.btn-primary { background: #2563eb; color: #fff; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-primary:disabled { background: #c7d2fe; cursor: not-allowed; }
+
+.btn-danger { background: #dc2626; color: #fff; margin-left: 8px; }
+
+.task-list {
+  max-height: 140px;
+  overflow-y: auto;
+  font-size: 12px;
+  border: 1px solid #eee;
+  border-radius: 6px;
+}
+
+.task-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.task-row:last-child { border-bottom: none; }
+.task-row .code { font-weight: 600; color: #2563eb; }
+.task-row .name { color: #444; text-align: right; }
+
+input[type="file"] { font-size: 13px; }
+
+.summary {
+  font-size: 12px;
+  background: #f7f8fa;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  line-height: 1.6;
+}
+
+#preview-table-wrap {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+table { width: 100%; border-collapse: collapse; font-size: 11px; }
+th, td {
+  padding: 5px 6px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+  white-space: nowrap;
+}
+th { background: #f7f8fa; position: sticky; top: 0; }
+
+.row-ok { color: #0a7a3d; }
+.row-error { color: #b3261e; }
+.row-warn { color: #b06a00; }
+
+.actions { display: flex; align-items: center; }
+
+.progress-bar-wrap {
+  background: #eef0f3;
+  border-radius: 6px;
+  height: 8px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: #2563eb;
+  transition: width 0.2s ease;
+}
+
+#progress-text { font-size: 12px; color: #555; margin: 0 0 8px; }
+
+.progress-log {
+  max-height: 150px;
+  overflow-y: auto;
+  font-size: 11px;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.progress-log div { padding: 2px 0; }

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Talenta Timesheet Helper</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Talenta Timesheet Helper</h1>
+      <p class="subtitle">Isi timesheet otomatis dari template Excel</p>
+    </header>
+
+    <section id="step-connect" class="card">
+      <div class="card-title">1. Cek koneksi ke Talenta</div>
+      <p id="connect-status" class="status status-pending">Belum dicek</p>
+      <button id="btn-check-connection" class="btn btn-secondary">Cek Koneksi &amp; Ambil Daftar Task</button>
+    </section>
+
+    <section id="step-tasklist" class="card hidden">
+      <div class="card-title">Daftar Task Tersedia</div>
+      <p class="hint">Gunakan salah satu <strong>kode task</strong> ini di kolom "Task Code" pada Excel kamu.</p>
+      <div id="task-list-table" class="task-list"></div>
+    </section>
+
+    <section id="step-upload" class="card hidden">
+      <div class="card-title">2. Upload Excel Timesheet</div>
+      <input type="file" id="file-input" accept=".xlsx,.xls" />
+      <p class="hint">Kolom wajib: <code>Date</code>, <code>Clock In</code>, <code>Clock Out</code>, <code>Task Code</code>, <code>Work Detail</code></p>
+    </section>
+
+    <section id="step-preview" class="card hidden">
+      <div class="card-title">3. Preview &amp; Validasi</div>
+      <div id="preview-summary" class="summary"></div>
+      <div id="preview-table-wrap">
+        <table id="preview-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Tanggal</th>
+              <th>Jam</th>
+              <th>Task</th>
+              <th>Work Detail</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="actions">
+        <button id="btn-submit" class="btn btn-primary" disabled>Submit Semua ke Talenta</button>
+        <button id="btn-stop" class="btn btn-danger hidden">Stop</button>
+      </div>
+    </section>
+
+    <section id="step-progress" class="card hidden">
+      <div class="card-title">4. Progress</div>
+      <div class="progress-bar-wrap">
+        <div id="progress-bar" class="progress-bar"></div>
+      </div>
+      <p id="progress-text">0 / 0</p>
+      <div id="progress-log" class="progress-log"></div>
+    </section>
+  </div>
+
+  <script src="../lib/xlsx.full.min.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
