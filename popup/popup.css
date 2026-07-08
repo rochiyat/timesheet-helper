@@ -184,3 +184,49 @@ th { background: #f7f8fa; position: sticky; top: 0; }
   padding: 6px 8px;
 }
 .progress-log div { padding: 2px 0; }
+
+.header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-maximize {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.btn-maximize:hover {
+  background-color: #eef0f3;
+  color: #1a1a1a;
+}
+
+/* Fullscreen/New Tab mode styles */
+body.fullscreen {
+  width: 100%;
+}
+
+body.fullscreen .app {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+body.fullscreen #preview-table-wrap {
+  max-height: 480px;
+}
+
+body.fullscreen .edit-input.edit-task {
+  width: 100%;
+}
+
+body.fullscreen .edit-input.edit-work {
+  width: 100%;
+}

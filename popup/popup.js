@@ -14,7 +14,20 @@ const els = {
   progressBar: document.getElementById('progress-bar'),
   progressText: document.getElementById('progress-text'),
   progressLog: document.getElementById('progress-log'),
+  btnMaximize: document.getElementById('btn-maximize'),
 };
+
+// Deteksi & set mode fullscreen jika dibuka di tab baru
+if (window.location.hash === '#fullscreen') {
+  document.body.classList.add('fullscreen');
+  if (els.btnMaximize) els.btnMaximize.style.display = 'none';
+}
+
+if (els.btnMaximize) {
+  els.btnMaximize.addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('popup/popup.html#fullscreen') });
+  });
+}
 
 let activeTabId = null;
 let taskList = []; // [{id, name, project_id, project_name}]
@@ -23,11 +36,26 @@ let parsedEntries = []; // hasil parsing + validasi, siap ditampilkan & disubmit
 const REQUIRED_HEADERS = ['Date', 'Clock In', 'Clock Out', 'Task Code', 'Work Detail'];
 
 async function getActiveTalentaTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab || !tab.url || !tab.url.startsWith('https://hr.talenta.co')) {
-    throw new Error('Buka tab Talenta (hr.talenta.co) dulu, lalu coba lagi.');
+  // Cek apakah extension berjalan sebagai tab sendiri (bukan popup)
+  const currentTab = await new Promise((resolve) => {
+    chrome.tabs.getCurrent(resolve);
+  });
+
+  if (currentTab) {
+    // Jika di tab baru, cari tab hr.talenta.co mana saja yang sedang terbuka
+    const tabs = await chrome.tabs.query({ url: 'https://hr.talenta.co/*' });
+    if (tabs.length === 0) {
+      throw new Error('Buka tab Talenta (hr.talenta.co) dulu di browser Anda, lalu coba lagi.');
+    }
+    return tabs[0];
+  } else {
+    // Jika di popup, cari tab aktif di window aktif saat ini
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.url || !tab.url.startsWith('https://hr.talenta.co')) {
+      throw new Error('Buka tab Talenta (hr.talenta.co) dulu, lalu coba lagi.');
+    }
+    return tab;
   }
-  return tab;
 }
 
 function sendMessageToTab(tabId, message) {
@@ -98,6 +126,22 @@ function findTaskByCode(code) {
 els.fileInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+
+  // 1. Validasi Ekstensi File (.xlsx atau .xls)
+  const fileName = file.name.toLowerCase();
+  if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
+    alert('Format file tidak didukung! Hanya menerima file .xlsx atau .xls');
+    e.target.value = ''; // Reset input file
+    return;
+  }
+
+  // 2. Validasi Ukuran File (Maksimal 5 MB = 5 * 1024 * 1024 bytes)
+  const maxSizeBytes = 5 * 1024 * 1024;
+  if (file.size > maxSizeBytes) {
+    alert('Ukuran file terlalu besar! Maksimal ukuran file adalah 5 MB.');
+    e.target.value = ''; // Reset input file
+    return;
+  }
 
   try {
     const buffer = await file.arrayBuffer();

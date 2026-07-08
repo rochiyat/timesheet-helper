@@ -8,7 +8,12 @@
 <body>
   <div class="app">
     <header>
-      <h1>Talenta Timesheet Helper</h1>
+      <div class="header-container">
+        <h1>Talenta Timesheet Helper</h1>
+        <button id="btn-maximize" class="btn-maximize" title="Buka di Tab Baru">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+        </button>
+      </div>
       <p class="subtitle">Isi timesheet otomatis dari template Excel</p>
     </header>
 
@@ -27,7 +32,10 @@
     <section id="step-upload" class="card hidden">
       <div class="card-title">2. Upload Excel Timesheet</div>
       <input type="file" id="file-input" accept=".xlsx,.xls" />
-      <p class="hint">Kolom wajib: <code>Date</code>, <code>Clock In</code>, <code>Clock Out</code>, <code>Task Code</code>, <code>Work Detail</code></p>
+      <p class="hint">
+        Format file: <strong>.xlsx, .xls (Maks. 5 MB)</strong><br>
+        Kolom wajib: <code>Date</code>, <code>Clock In</code>, <code>Clock Out</code>, <code>Task Code</code>, <code>Work Detail</code>
+      </p>
     </section>
 
     <section id="step-preview" class="card hidden">
