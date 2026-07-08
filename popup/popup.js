@@ -130,13 +130,20 @@ function pad2(n) {
 
 function parseDateCell(value) {
   let d = null;
-  if (value instanceof Date) {
+  if (typeof value === 'string' && value.trim() !== '') {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    d = new Date(trimmed);
+  } else if (value instanceof Date) {
     d = value;
-  } else if (typeof value === 'string' && value.trim() !== '') {
-    d = new Date(value.trim());
   }
   if (!d || isNaN(d.getTime())) return null;
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+  // Tambahkan 12 jam untuk mengompensasi pergeseran zona waktu (timezone drift/Batavia time offset sejak 1900)
+  const adjusted = new Date(d.getTime() + 12 * 60 * 60 * 1000);
+  return `${adjusted.getFullYear()}-${pad2(adjusted.getMonth() + 1)}-${pad2(adjusted.getDate())}`;
 }
 
 function parseTimeCell(value) {
@@ -209,7 +216,7 @@ function validateRow(row, idx) {
   };
 }
 
-function renderPreview() {
+function updateSummary() {
   const validCount = parsedEntries.filter((e) => e.isValid).length;
   const errorCount = parsedEntries.length - validCount;
   const totalHours = parsedEntries
@@ -220,6 +227,30 @@ function renderPreview() {
     ✅ ${validCount} baris valid &middot; ${errorCount > 0 ? `❌ ${errorCount} baris error` : 'tidak ada error'}<br>
     Total jam (baris valid): <strong>${totalHours}</strong> jam
   `;
+
+  els.btnSubmit.disabled = validCount === 0;
+}
+
+function buildTaskSelectHtml(selectedCode, idx) {
+  let found = false;
+  let optionsHtml = `<option value="">-- Pilih Task --</option>`;
+
+  taskList.forEach((task) => {
+    const code = extractTaskCode(task.name);
+    const isSelected = code.toLowerCase() === String(selectedCode).trim().toLowerCase();
+    if (isSelected) found = true;
+    optionsHtml += `<option value="${code}" ${isSelected ? 'selected' : ''}>${task.name}</option>`;
+  });
+
+  if (selectedCode && !found) {
+    optionsHtml += `<option value="${selectedCode}" selected>${selectedCode} (Tidak ditemukan)</option>`;
+  }
+
+  return `<select class="edit-input edit-task" data-idx="${idx}">${optionsHtml}</select>`;
+}
+
+function renderPreview() {
+  updateSummary();
 
   els.previewTableBody.innerHTML = '';
   parsedEntries.forEach((entry) => {
@@ -239,18 +270,17 @@ function renderPreview() {
     }
 
     tr.className = rowClass;
+    tr.setAttribute('data-idx', entry.idx);
     tr.innerHTML = `
       <td>${entry.idx + 1}</td>
-      <td>${entry.dateStr || '-'}</td>
-      <td>${entry.start_time ? entry.start_time.slice(11, 16) : '?'} - ${entry.end_time ? entry.end_time.slice(11, 16) : '?'}</td>
-      <td>${entry.taskCode || '-'}</td>
-      <td>${entry.workDetail || '-'}</td>
-      <td>${statusHtml}</td>
+      <td><input type="date" class="edit-input edit-date" data-idx="${entry.idx}" value="${entry.dateStr || ''}"></td>
+      <td class="time-cell">${entry.start_time ? entry.start_time.slice(11, 16) : '?'} - ${entry.end_time ? entry.end_time.slice(11, 16) : '?'}</td>
+      <td>${buildTaskSelectHtml(entry.taskCode, entry.idx)}</td>
+      <td><input type="text" class="edit-input edit-work" data-idx="${entry.idx}" value="${entry.workDetail || ''}"></td>
+      <td class="status-cell">${statusHtml}</td>
     `;
     els.previewTableBody.appendChild(tr);
   });
-
-  els.btnSubmit.disabled = validCount === 0;
 }
 
 // ---------- Step 3: Submit ----------
@@ -327,3 +357,57 @@ els.btnStop.addEventListener('click', async () => {
   await sendMessageToTab(activeTabId, { type: 'STOP_SUBMIT' });
   els.btnStop.disabled = true;
 });
+
+function handleCellEdit(e) {
+  const target = e.target;
+  if (!target.classList.contains('edit-input')) return;
+
+  const idx = parseInt(target.getAttribute('data-idx'), 10);
+  const tr = target.closest('tr');
+  if (!tr || isNaN(idx)) return;
+
+  const entry = parsedEntries[idx];
+  if (!entry) return;
+
+  const dateInput = tr.querySelector('.edit-date');
+  const taskInput = tr.querySelector('.edit-task');
+  const workInput = tr.querySelector('.edit-work');
+
+  entry.raw['Date'] = dateInput.value;
+  entry.raw['Task Code'] = taskInput.value;
+  entry.raw['Work Detail'] = workInput.value;
+
+  const validated = validateRow(entry.raw, idx);
+  parsedEntries[idx] = validated;
+
+  let statusHtml = '';
+  let rowClass = '';
+
+  if (validated.errors.length > 0) {
+    statusHtml = `❌ ${validated.errors.join('; ')}`;
+    rowClass = 'row-error';
+  } else if (validated.warnings.length > 0) {
+    statusHtml = `⚠️ ${validated.warnings.join('; ')}`;
+    rowClass = 'row-warn';
+  } else {
+    statusHtml = '✅ OK';
+    rowClass = 'row-ok';
+  }
+
+  tr.className = rowClass;
+
+  const statusCell = tr.querySelector('.status-cell');
+  if (statusCell) {
+    statusCell.innerHTML = statusHtml;
+  }
+
+  const timeCell = tr.querySelector('.time-cell');
+  if (timeCell) {
+    timeCell.textContent = `${validated.start_time ? validated.start_time.slice(11, 16) : '?'} - ${validated.end_time ? validated.end_time.slice(11, 16) : '?'}`;
+  }
+
+  updateSummary();
+}
+
+els.previewTableBody.addEventListener('input', handleCellEdit);
+els.previewTableBody.addEventListener('change', handleCellEdit);

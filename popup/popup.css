@@ -100,13 +100,6 @@ input[type="file"] { font-size: 13px; }
   line-height: 1.6;
 }
 
-#preview-table-wrap {
-  max-height: 220px;
-  overflow-y: auto;
-  border: 1px solid #eee;
-  border-radius: 6px;
-  margin-bottom: 10px;
-}
 
 table { width: 100%; border-collapse: collapse; font-size: 11px; }
 th, td {
@@ -120,6 +113,49 @@ th { background: #f7f8fa; position: sticky; top: 0; }
 .row-ok { color: #0a7a3d; }
 .row-error { color: #b3261e; }
 .row-warn { color: #b06a00; }
+
+#preview-table-wrap {
+  max-height: 220px;
+  overflow: auto; /* enables both vertical and horizontal scrollbars if needed */
+  border: 1px solid #eee;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+#preview-table td {
+  padding: 4px 6px;
+  vertical-align: middle;
+}
+
+.edit-input {
+  width: 100%;
+  border: 1px solid #e2e4e8;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  color: #1a1a1a;
+  background-color: #fff;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.edit-input:focus {
+  border-color: #2563eb;
+  outline: 0;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.edit-input.edit-date {
+  width: 115px;
+}
+
+.edit-input.edit-task {
+  width: 140px;
+}
+
+.edit-input.edit-work {
+  width: 160px;
+}
 
 .actions { display: flex; align-items: center; }
 
