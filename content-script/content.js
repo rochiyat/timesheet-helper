@@ -50,6 +50,53 @@ async function submitEntry({ task_id, activity, start_time, end_time }) {
   return json.data;
 }
 
+async function fetchTimesheetByDate(date) {
+  const res = await fetch(`${API_BASE}/report?assigneeid=&date=${date}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { accept: 'application/json, text/plain, */*' },
+  });
+  if (!res.ok) throw new Error(`Gagal mengambil data timesheet (HTTP ${res.status})`);
+  const json = await res.json();
+  if (json.status !== 200) throw new Error(json.message || 'Gagal mengambil data timesheet');
+  return json.data;
+}
+
+async function deleteEntryById(id) {
+  const csrfToken = getCsrfToken();
+  const res = await fetch(`${API_BASE}/delete`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      accept: '*/*',
+      'content-type': 'application/json',
+      'x-csrf-token': csrfToken,
+    },
+    body: JSON.stringify({ id }),
+  });
+
+  let json;
+  try {
+    json = await res.json();
+  } catch (e) {
+    throw new Error(`Response delete tidak valid (HTTP ${res.status})`);
+  }
+
+  if (!res.ok || json.status !== 200) {
+    throw new Error(json.message || `Gagal menghapus entry (HTTP ${res.status})`);
+  }
+  return json.data;
+}
+
+function getMonday(dateStr) {
+  const parts = dateStr.split('-');
+  const d = new Date(Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
+  const day = d.getUTCDay();
+  const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.setUTCDate(diff));
+  return `${monday.getUTCFullYear()}-${String(monday.getUTCMonth() + 1).padStart(2, '0')}-${String(monday.getUTCDate()).padStart(2, '0')}`;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -73,6 +120,72 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then((data) => sendResponse({ ok: true, data }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true; // keep channel open for async response
+  }
+
+  if (message.type === 'CHECK_EXISTING') {
+    (async () => {
+      try {
+        const mondays = [...new Set(message.dates.map(getMonday))];
+        const resultsMap = {};
+        
+        for (const monday of mondays) {
+          const reportData = await fetchTimesheetByDate(monday);
+          if (reportData && reportData.daily) {
+            reportData.daily.forEach(day => {
+              if (day.data && day.data.length > 0) {
+                resultsMap[day.date] = day.data.map(item => ({
+                  id: item.id,
+                  task_id: item.task_id,
+                  activity: item.activity,
+                  task_title: item.task_title,
+                  start_time: item.start_time,
+                  end_time: item.end_time
+                }));
+              }
+            });
+          }
+        }
+        sendResponse({ ok: true, existing: resultsMap });
+      } catch (err) {
+        sendResponse({ ok: false, error: err.message });
+      }
+    })();
+    return true; // keep channel open
+  }
+
+  if (message.type === 'DELETE_ENTRIES') {
+    (async () => {
+      const ids = message.ids;
+      const results = [];
+      stopRequested = false;
+
+      for (let i = 0; i < ids.length; i++) {
+        if (stopRequested) {
+          results.push({ id: ids[i], ok: false, error: 'Dihentikan oleh user' });
+          break;
+        }
+        const id = ids[i];
+        try {
+          await deleteEntryById(id);
+          results.push({ id, ok: true });
+        } catch (err) {
+          results.push({ id, ok: false, error: err.message });
+        }
+
+        chrome.runtime.sendMessage({
+          type: 'DELETE_PROGRESS',
+          done: i + 1,
+          total: ids.length,
+          lastResult: results[results.length - 1]
+        }).catch(() => {});
+
+        if (i < ids.length - 1) {
+          await sleep(500 + Math.random() * 300);
+        }
+      }
+      sendResponse({ ok: true, results });
+    })();
+    return true; // keep channel open
   }
 
   if (message.type === 'SUBMIT_ENTRIES') {

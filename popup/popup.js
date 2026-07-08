@@ -32,6 +32,7 @@ if (els.btnMaximize) {
 let activeTabId = null;
 let taskList = []; // [{id, name, project_id, project_name}]
 let parsedEntries = []; // hasil parsing + validasi, siap ditampilkan & disubmit
+let existingEntriesMap = {}; // map tanggal -> array entry existing di Talenta
 
 const REQUIRED_HEADERS = ['Date', 'Clock In', 'Clock Out', 'Task Code', 'Work Detail'];
 
@@ -189,8 +190,10 @@ els.fileInput.addEventListener('change', async (e) => {
     }
 
     parsedEntries = rows.map((row, idx) => validateRow(row, idx));
+    existingEntriesMap = {}; // Reset data existing sebelumnya
     renderPreview();
     els.stepPreview.classList.remove('hidden');
+    checkExistingEntries();
   } catch (err) {
     alert(`Gagal membaca file: ${err.message}`);
   }
@@ -327,22 +330,68 @@ function validateRow(row, idx) {
     errors,
     warnings,
     isValid: errors.length === 0,
+    isSelected: errors.length === 0,
   };
+}
+
+async function checkExistingEntries() {
+  const validDates = [...new Set(parsedEntries.filter(e => e.isValid && e.dateStr).map(e => e.dateStr))];
+  if (validDates.length === 0) return;
+
+  try {
+    const tab = await getActiveTalentaTab();
+    activeTabId = tab.id;
+    
+    // Tampilkan status loading
+    els.previewSummary.innerHTML = `⏳ Mengecek data existing di Talenta...`;
+    els.btnSubmit.disabled = true;
+    
+    const res = await sendMessageToTab(activeTabId, { type: 'CHECK_EXISTING', dates: validDates });
+    if (res && res.ok) {
+      existingEntriesMap = res.existing || {};
+    }
+  } catch (err) {
+    console.error('Gagal mengecek data existing:', err);
+  } finally {
+    renderPreview();
+  }
 }
 
 function updateSummary() {
   const validCount = parsedEntries.filter((e) => e.isValid).length;
+  const selectedCount = parsedEntries.filter((e) => e.isValid && e.isSelected).length;
   const errorCount = parsedEntries.length - validCount;
   const totalHours = parsedEntries
-    .filter((e) => e.isValid)
+    .filter((e) => e.isValid && e.isSelected)
     .reduce((sum, e) => sum + (e.durationHours || 0), 0);
 
+  // Hitung jumlah data existing yang akan ditumpuk (replace)
+  const uniqueSelectedDates = [...new Set(parsedEntries.filter(e => e.isValid && e.isSelected && e.dateStr).map(e => e.dateStr))];
+  let replaceCount = 0;
+  uniqueSelectedDates.forEach(date => {
+    if (existingEntriesMap[date] && existingEntriesMap[date].length > 0) {
+      replaceCount += existingEntriesMap[date].length;
+    }
+  });
+
+  let replaceInfo = '';
+  if (replaceCount > 0) {
+    replaceInfo = `<br><span style="color: #1e40af; font-weight: 600;">🔄 ${replaceCount} data existing di ${uniqueSelectedDates.filter(d => existingEntriesMap[d] && existingEntriesMap[d].length > 0).length} tanggal akan di-replace</span>`;
+  }
+
   els.previewSummary.innerHTML = `
-    ✅ ${validCount} baris valid &middot; ${errorCount > 0 ? `❌ ${errorCount} baris error` : 'tidak ada error'}<br>
-    Total jam (baris valid): <strong>${totalHours}</strong> jam
+    ✅ ${validCount} baris valid (${selectedCount} dipilih) &middot; ${errorCount > 0 ? `❌ ${errorCount} baris error` : 'tidak ada error'}<br>
+    Total jam (dipilih): <strong>${totalHours}</strong> jam${replaceInfo}
   `;
 
-  els.btnSubmit.disabled = validCount === 0;
+  els.btnSubmit.disabled = selectedCount === 0;
+
+  // Sinkronisasi checkbox "Select All" di header
+  const checkAllCheckbox = document.getElementById('check-all');
+  if (checkAllCheckbox) {
+    const validEntries = parsedEntries.filter(e => e.isValid);
+    checkAllCheckbox.checked = validEntries.length > 0 && validEntries.every(e => e.isSelected);
+  }
 }
 
 function buildTaskSelectHtml(selectedCode, idx) {
@@ -371,10 +420,15 @@ function renderPreview() {
     const tr = document.createElement('tr');
     let statusHtml = '';
     let rowClass = '';
+    const hasExisting = entry.dateStr && existingEntriesMap[entry.dateStr] && existingEntriesMap[entry.dateStr].length > 0;
 
     if (entry.errors.length > 0) {
       statusHtml = `❌ ${entry.errors.join('; ')}`;
       rowClass = 'row-error';
+    } else if (hasExisting && entry.isSelected) {
+      const count = existingEntriesMap[entry.dateStr].length;
+      statusHtml = `<span class="badge badge-replace" title="${existingEntriesMap[entry.dateStr].map(x => `${x.task_title}: ${x.activity}`).join('\n')}">🔄 Replace (${count} data)</span>`;
+      rowClass = 'row-replace';
     } else if (entry.warnings.length > 0) {
       statusHtml = `⚠️ ${entry.warnings.join('; ')}`;
       rowClass = 'row-warn';
@@ -385,8 +439,15 @@ function renderPreview() {
 
     tr.className = rowClass;
     tr.setAttribute('data-idx', entry.idx);
+
+    const checkboxHtml = `
+      <input type="checkbox" class="entry-checkbox" data-idx="${entry.idx}" 
+        ${entry.isSelected ? 'checked' : ''} 
+        ${entry.isValid ? '' : 'disabled'} />
+    `;
+
     tr.innerHTML = `
-      <td>${entry.idx + 1}</td>
+      <td>${checkboxHtml}</td>
       <td><input type="date" class="edit-input edit-date" data-idx="${entry.idx}" value="${entry.dateStr || ''}"></td>
       <td class="time-cell">${entry.start_time ? entry.start_time.slice(11, 16) : '?'} - ${entry.end_time ? entry.end_time.slice(11, 16) : '?'}</td>
       <td>${buildTaskSelectHtml(entry.taskCode, entry.idx)}</td>
@@ -400,13 +461,26 @@ function renderPreview() {
 // ---------- Step 3: Submit ----------
 
 els.btnSubmit.addEventListener('click', async () => {
-  const validEntries = parsedEntries.filter((e) => e.isValid);
-  if (validEntries.length === 0) return;
+  const validAndSelected = parsedEntries.filter((e) => e.isValid && e.isSelected);
+  if (validAndSelected.length === 0) return;
 
-  const skipped = parsedEntries.length - validEntries.length;
-  const confirmMsg = skipped > 0
-    ? `${validEntries.length} entry akan disubmit, ${skipped} baris error akan dilewati. Lanjutkan?`
-    : `${validEntries.length} entry akan disubmit ke Talenta. Lanjutkan?`;
+  // Dapatkan semua ID data existing yang perlu dihapus (berdasarkan tanggal-tanggal unik yang dipilih)
+  const uniqueSelectedDates = [...new Set(validAndSelected.map(e => e.dateStr))];
+  const idsToDelete = [];
+  uniqueSelectedDates.forEach(date => {
+    const existing = existingEntriesMap[date] || [];
+    existing.forEach(item => idsToDelete.push(item.id));
+  });
+
+  // Tampilkan dialog konfirmasi
+  let confirmMsg = '';
+  if (idsToDelete.length > 0) {
+    confirmMsg = `⚠️ Ditemukan ${idsToDelete.length} data existing di ${uniqueSelectedDates.length} tanggal yang dipilih.\n` +
+                 `Data lama di tanggal-tanggal tersebut akan DIHAPUS terlebih dahulu lalu DIGANTI dengan data baru.\n\n` +
+                 `Apakah Anda yakin ingin melanjutkan?`;
+  } else {
+    confirmMsg = `${validAndSelected.length} entry akan disubmit ke Talenta. Lanjutkan?`;
+  }
 
   if (!confirm(confirmMsg)) return;
 
@@ -415,20 +489,44 @@ els.btnSubmit.addEventListener('click', async () => {
   els.stepProgress.classList.remove('hidden');
   els.progressLog.innerHTML = '';
   els.progressBar.style.width = '0%';
-  els.progressText.textContent = `0 / ${validEntries.length}`;
 
-  const payload = validEntries.map((e) => ({
-    task_id: e.task.id,
-    activity: e.workDetail,
-    start_time: e.start_time,
-    end_time: e.end_time,
-  }));
+  // Listener progress penghapusan data
+  const deleteProgressListener = (message) => {
+    if (message.type !== 'DELETE_PROGRESS') return;
+    const pct = Math.round((message.done / message.total) * 100);
+    els.progressBar.style.width = `${pct}%`;
+    els.progressText.textContent = `Menghapus data lama: ${message.done} / ${message.total}`;
 
+    const r = message.lastResult;
+    
+    // Cari tanggal dari ID yang dihapus untuk UI yang lebih ramah pengguna
+    let dateStr = `ID ${r.id}`;
+    for (const [date, entries] of Object.entries(existingEntriesMap)) {
+      const found = entries.find(item => item.id === r.id);
+      if (found && found.start_time) {
+        dateStr = found.start_time.slice(0, 10);
+        break;
+      }
+    }
+
+    const line = document.createElement('div');
+    if (r.ok) {
+      line.style.color = '#1e40af';
+      line.textContent = `🗑️ Sukses menghapus entry tanggal ${dateStr}`;
+    } else {
+      line.style.color = '#dc2626';
+      line.textContent = `❌ Gagal menghapus entry tanggal ${dateStr}: ${r.error}`;
+    }
+    els.progressLog.appendChild(line);
+    els.progressLog.scrollTop = els.progressLog.scrollHeight;
+  };
+
+  // Listener progress pengiriman data baru
   const progressListener = (message) => {
     if (message.type !== 'SUBMIT_PROGRESS') return;
     const pct = Math.round((message.done / message.total) * 100);
     els.progressBar.style.width = `${pct}%`;
-    els.progressText.textContent = `${message.done} / ${message.total}`;
+    els.progressText.textContent = `Mengirim data baru: ${message.done} / ${message.total}`;
 
     const r = message.lastResult;
     const line = document.createElement('div');
@@ -441,28 +539,61 @@ els.btnSubmit.addEventListener('click', async () => {
     els.progressLog.scrollTop = els.progressLog.scrollHeight;
   };
 
+  chrome.runtime.onMessage.addListener(deleteProgressListener);
   chrome.runtime.onMessage.addListener(progressListener);
 
   try {
+    // 1. Jalankan proses delete jika ada data existing
+    if (idsToDelete.length > 0) {
+      els.progressText.textContent = `Menghapus data lama: 0 / ${idsToDelete.length}`;
+      const delRes = await sendMessageToTab(activeTabId, { type: 'DELETE_ENTRIES', ids: idsToDelete });
+      if (!delRes || !delRes.ok) {
+        throw new Error('Gagal menjalankan proses penghapusan data lama.');
+      }
+      
+      // Beri sedikit jeda setelah selesai menghapus sebelum mulai meng-insert
+      await new Promise(resolve => setTimeout(resolve, 800));
+    }
+
+    // 2. Jalankan proses insert data baru
+    const payload = validAndSelected.map((e) => ({
+      task_id: e.task.id,
+      activity: e.workDetail,
+      start_time: e.start_time,
+      end_time: e.end_time,
+    }));
+
+    els.progressText.textContent = `Mengirim data baru: 0 / ${payload.length}`;
     const res = await sendMessageToTab(activeTabId, { type: 'SUBMIT_ENTRIES', entries: payload });
-    chrome.runtime.onMessage.removeListener(progressListener);
 
     if (!res || !res.ok) {
-      throw new Error('Gagal menjalankan proses submit.');
+      throw new Error('Gagal menjalankan proses submit data baru.');
     }
 
     const failedCount = res.results.filter((r) => !r.ok).length;
     const doneLine = document.createElement('div');
     doneLine.style.fontWeight = '600';
     doneLine.textContent = failedCount === 0
-      ? '🎉 Semua entry berhasil disubmit.'
+      ? '🎉 Semua proses (delete + insert) berhasil disubmit.'
       : `Selesai dengan ${failedCount} gagal. Cek log di atas.`;
     els.progressLog.appendChild(doneLine);
+
+    // Tampilkan pop up pemberitahuan selesai
+    setTimeout(() => {
+      if (failedCount === 0) {
+        alert('🎉 Semua data timesheet berhasil diproses dan disubmit!');
+      } else {
+        alert(`⚠️ Proses selesai dengan ${failedCount} data gagal disubmit. Silakan periksa log.`);
+      }
+    }, 100);
   } catch (err) {
-    chrome.runtime.onMessage.removeListener(progressListener);
     alert(`Terjadi kesalahan: ${err.message}`);
   } finally {
+    chrome.runtime.onMessage.removeListener(deleteProgressListener);
+    chrome.runtime.onMessage.removeListener(progressListener);
     els.btnStop.classList.add('hidden');
+    // Refresh data existing setelah submit selesai
+    checkExistingEntries();
   }
 });
 
@@ -487,41 +618,49 @@ function handleCellEdit(e) {
   const taskInput = tr.querySelector('.edit-task');
   const workInput = tr.querySelector('.edit-work');
 
+  const oldDate = entry.dateStr;
+
   entry.raw['Date'] = dateInput.value;
   entry.raw['Task Code'] = taskInput.value;
   entry.raw['Work Detail'] = workInput.value;
 
   const validated = validateRow(entry.raw, idx);
+  // Tetap pertahankan status isSelected yang diset user
+  validated.isSelected = entry.isSelected;
   parsedEntries[idx] = validated;
 
-  let statusHtml = '';
-  let rowClass = '';
-
-  if (validated.errors.length > 0) {
-    statusHtml = `❌ ${validated.errors.join('; ')}`;
-    rowClass = 'row-error';
-  } else if (validated.warnings.length > 0) {
-    statusHtml = `⚠️ ${validated.warnings.join('; ')}`;
-    rowClass = 'row-warn';
+  if (validated.dateStr !== oldDate) {
+    checkExistingEntries();
   } else {
-    statusHtml = '✅ OK';
-    rowClass = 'row-ok';
+    renderPreview(); // Re-render untuk mengupdate class baris dan status badge
   }
-
-  tr.className = rowClass;
-
-  const statusCell = tr.querySelector('.status-cell');
-  if (statusCell) {
-    statusCell.innerHTML = statusHtml;
-  }
-
-  const timeCell = tr.querySelector('.time-cell');
-  if (timeCell) {
-    timeCell.textContent = `${validated.start_time ? validated.start_time.slice(11, 16) : '?'} - ${validated.end_time ? validated.end_time.slice(11, 16) : '?'}`;
-  }
-
-  updateSummary();
 }
 
 els.previewTableBody.addEventListener('input', handleCellEdit);
 els.previewTableBody.addEventListener('change', handleCellEdit);
+
+// Listener untuk checkbox per baris
+els.previewTableBody.addEventListener('change', (e) => {
+  const target = e.target;
+  if (target.classList.contains('entry-checkbox')) {
+    const idx = parseInt(target.getAttribute('data-idx'), 10);
+    if (!isNaN(idx) && parsedEntries[idx]) {
+      parsedEntries[idx].isSelected = target.checked;
+      renderPreview();
+    }
+  }
+});
+
+// Listener untuk checkbox "Select All" di header
+document.addEventListener('change', (e) => {
+  const target = e.target;
+  if (target.id === 'check-all') {
+    const checked = target.checked;
+    parsedEntries.forEach(entry => {
+      if (entry.isValid) {
+        entry.isSelected = checked;
+      }
+    });
+    renderPreview();
+  }
+});

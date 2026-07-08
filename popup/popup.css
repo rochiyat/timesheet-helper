@@ -230,3 +230,28 @@ body.fullscreen .edit-input.edit-task {
 body.fullscreen .edit-input.edit-work {
   width: 100%;
 }
+
+.row-replace {
+  color: #1e40af;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.badge-replace {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+#preview-table th:first-child,
+#preview-table td:first-child {
+  width: 35px;
+  text-align: center;
+  padding: 4px;
+}
