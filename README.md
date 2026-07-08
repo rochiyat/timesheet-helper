@@ -1,67 +1,135 @@
-# Talenta Timesheet Helper (Personal Use)
+<div align="center">
 
-Extension Chrome untuk isi timesheet Talenta otomatis dari template Excel,
-tanpa DOM automation — langsung panggil API yang sama dipakai halaman
-Talenta, memakai sesi login browser kamu sendiri.
+# ⏱️ Talenta Timesheet Helper
 
-## Cara Install (Developer Mode)
+**Automate your Talenta timesheet from an Excel template — fast, private, and reliable.**
 
-1. Buka Chrome, ketik di address bar: `chrome://extensions`
-2. Aktifkan toggle **Developer mode** (pojok kanan atas)
-3. Klik **Load unpacked**
-4. Pilih folder `timesheet-helper` ini (folder yang berisi `manifest.json`)
-5. Extension akan muncul di toolbar Chrome (ikon puzzle piece → pin biar keliatan)
+[![Chrome Extension](https://img.shields.io/badge/Platform-Chrome_Extension-4285F4?logo=googlechrome&logoColor=white)](#installation)
+[![Manifest V3](https://img.shields.io/badge/Manifest-V3-34A853?logo=googlechrome&logoColor=white)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Cara Pakai
+</div>
 
-1. **Login dan buka Talenta** di tab Chrome (`https://hr.talenta.co`)
-2. Klik ikon extension di toolbar
-3. Klik **"Cek Koneksi & Ambil Daftar Task"** — ini mengambil daftar task
-   kamu (Public Holiday, Sick Leave, project kerja, dll) langsung dari
-   Talenta, jadi selalu up to date
-4. Isi file Excel dari `template-timesheet.xlsx` (ada di folder
-   `timesheet-helper-example`), kolom yang wajib diisi:
-   - `Date` — tanggal (format bebas, misal "Tuesday, 02 June 2026")
-   - `Clock In` — jam masuk (format `08:00`)
-   - `Clock Out` — jam pulang (format `17:00`)
-   - `Task Code` — pilih dari dropdown (sudah otomatis tersedia di
-     kolom D, sesuai daftar task yang diambil dari Talenta)
-   - `Work Detail` — deskripsi pekerjaan/keterangan
-5. Upload file Excel itu di popup extension
-6. Cek **preview** — baris yang error akan ditandai merah dengan alasan
-   spesifiknya, baris valid ditandai hijau
-7. Klik **"Submit Semua ke Talenta"** — extension akan isi satu per satu
-   dengan jeda natural, progress-nya kelihatan real-time
-8. Kalau ada yang salah di tengah jalan, klik **Stop** kapan saja
+---
 
-## Kenapa Task Code, bukan pilih "Jenis" terpisah?
+## ✨ Overview
 
-Di sistem Talenta kamu, "jenis" entry (kerja/cuti/sakit/public holiday)
-itu **sebenarnya adalah pilihan task**, bukan field terpisah. Jadi kalau
-kamu pilih Task Code `G2020AE005` (Public Holidays), otomatis itu sudah
-benar jenisnya — nggak mungkin ketuker sama Work Detail yang isinya
-pekerjaan, karena keduanya memang satu kesatuan pilihan.
+Talenta Timesheet Helper is a lightweight Chrome extension that fills your [Talenta HR](https://hr.talenta.co) timesheet automatically from an Excel spreadsheet. It calls Talenta's own API endpoints using your existing browser session — no scraping, no backend, no third-party servers.
 
-## Update Daftar Task
+### Key Features
 
-Kalau company kamu nambah project baru, klik lagi tombol
-**"Cek Koneksi & Ambil Daftar Task"** di popup — daftar akan ter-refresh
-otomatis dari Talenta, gak perlu update kode.
+| Feature | Description |
+|---------|-------------|
+| 📋 **Excel Import** | Upload `.xlsx` files with your timesheet data |
+| 🔍 **Live Preview & Validation** | Inspect every row before submitting — errors highlighted in red |
+| ✏️ **Inline Editing** | Edit dates, tasks, and work details directly in the preview table |
+| 📝 **Task Dropdown** | Pick tasks from a live dropdown synced with your Talenta account |
+| 🚀 **Batch Submit** | Submit all entries to Talenta with real-time progress tracking |
+| ⏹️ **Stop Anytime** | Abort mid-submission if something looks wrong |
+| 🔒 **100% Private** | Zero data leaves your browser — no external servers, no telemetry |
 
-## Keamanan
+---
 
-- Extension ini **tidak pernah mengirim token/cookie kamu ke server
-  manapun** — semua request `fetch()` jalan langsung dari browser kamu
-  ke Talenta, sama seperti kalau kamu isi manual
-- Tidak ada backend, tidak ada data yang disimpan di luar browser kamu
-- Source code 100% bisa diperiksa (`content-script/content.js` dan
-  `popup/popup.js`) — nggak ada request ke domain lain selain
-  `hr.talenta.co`
+## 📦 Installation
 
-## Known Limitations (MVP)
+> **Note:** This extension is not published on the Chrome Web Store. Install it in Developer Mode.
 
-- Kalau Talenta mengubah struktur endpoint API, extension ini perlu
-  di-update (lihat konstanta `API_BASE` di `content-script/content.js`)
-- Belum ada dukungan multi-sheet / multi-bulan sekaligus — 1 file Excel
-  = 1 bulan
-- Belum ada reminder deadline otomatis (rencana fase berikutnya)
+1. Clone or download this repository
+2. Open Chrome and navigate to `chrome://extensions`
+3. Enable **Developer mode** (toggle in the top-right corner)
+4. Click **Load unpacked** and select the `timesheet-helper` folder (the one containing `manifest.json`)
+5. Pin the extension from the puzzle icon in the toolbar for easy access
+
+---
+
+## 🚀 Usage
+
+### Step 1 — Connect to Talenta
+
+1. Log in to [Talenta HR](https://hr.talenta.co) in any Chrome tab
+2. Click the extension icon in your toolbar
+3. Click **"Cek Koneksi & Ambil Daftar Task"** to fetch your available tasks
+
+### Step 2 — Prepare Your Excel File
+
+Use the provided template at [`docs/template-timesheet.xlsx`](docs/template-timesheet.xlsx) or create your own with these **required columns**:
+
+| Column | Format | Example |
+|--------|--------|---------|
+| `Date` | Any recognizable date format | `Tuesday, 01 July 2026` |
+| `Clock In` | `HH:MM` | `09:00` |
+| `Clock Out` | `HH:MM` | `17:00` |
+| `Task Code` | Code from the task list | `E2022DA009` |
+| `Work Detail` | Free text description | `Sprint planning & code review` |
+
+### Step 3 — Upload, Review & Edit
+
+1. Upload your Excel file in the extension popup
+2. Review the **preview table** — each row shows validation status:
+   - ✅ **Green** — valid and ready to submit
+   - ❌ **Red** — error with a specific reason
+   - ⚠️ **Yellow** — warning (e.g., unusually long hours)
+3. **Edit inline** if needed — change dates, pick a different task from the dropdown, or update the work detail directly in the table
+
+### Step 4 — Submit
+
+1. Click **"Submit Semua ke Talenta"** to begin batch submission
+2. Watch the progress bar and per-entry status in real time
+3. Click **Stop** at any time to abort
+
+---
+
+## 📁 Project Structure
+
+```
+timesheet-helper/
+├── manifest.json            # Chrome Extension manifest (V3)
+├── content-script/
+│   └── content.js           # Injected into Talenta — handles API calls
+├── popup/
+│   ├── popup.html           # Extension popup UI
+│   ├── popup.css            # Popup styles
+│   └── popup.js             # Popup logic (parsing, validation, editing)
+├── lib/
+│   └── xlsx.full.min.js     # SheetJS library for Excel parsing
+├── docs/
+│   └── template-timesheet.xlsx  # Excel template
+└── LICENSE
+```
+
+---
+
+## 🔒 Security & Privacy
+
+This extension is designed with a **zero-trust, local-only** philosophy:
+
+- **No external servers** — all `fetch()` requests go directly from your browser to `hr.talenta.co`, identical to manual usage
+- **No data storage** — nothing is persisted outside your browser session
+- **No telemetry** — no analytics, no tracking, no third-party scripts
+- **Fully auditable** — the entire source code is in `content-script/content.js` and `popup/popup.js`
+
+---
+
+## ⚠️ Known Limitations
+
+- If Talenta changes their API structure, the extension may need an update (see `API_BASE` in `content-script/content.js`)
+- Single-sheet / single-month per file — multi-sheet support is not yet available
+- No automated deadline reminders (planned for a future release)
+
+---
+
+## 🤝 Contributing
+
+This is a personal-use tool, but contributions are welcome. Feel free to open an issue or submit a pull request.
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+<div align="center">
+  <sub>Built with ☕ for anyone who'd rather not click 160 form fields every month.</sub>
+</div>
