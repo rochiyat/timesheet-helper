@@ -101,19 +101,47 @@ els.fileInput.addEventListener('change', async (e) => {
 
   try {
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const workbook = XLSX.read(buffer, { type: 'array' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-
-    if (rows.length === 0) {
+    
+    // Baca teks format secara langsung (raw: false) untuk menghindari bug konversi Date timezone
+    const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+    
+    if (rawRows.length === 0) {
       throw new Error('File Excel kosong atau format tidak terbaca.');
     }
 
-    const headers = Object.keys(rows[0]);
-    const missing = REQUIRED_HEADERS.filter((h) => !headers.includes(h));
-    if (missing.length > 0) {
-      throw new Error(`Kolom wajib tidak ditemukan: ${missing.join(', ')}`);
+    // Cari index baris yang mengandung semua kolom wajib
+    let headerRowIndex = -1;
+    let actualHeaders = [];
+    
+    for (let i = 0; i < rawRows.length; i++) {
+      const rowArr = rawRows[i].map(h => String(h || '').trim());
+      const hasAllRequired = REQUIRED_HEADERS.every(req => rowArr.includes(req));
+      if (hasAllRequired) {
+        headerRowIndex = i;
+        actualHeaders = rowArr;
+        break;
+      }
+    }
+
+    if (headerRowIndex === -1) {
+      throw new Error(`Baris Header wajib tidak ditemukan. Pastikan ada kolom: ${REQUIRED_HEADERS.join(', ')}`);
+    }
+
+    // Ubah baris-baris di bawah header menjadi array of objects
+    const rows = [];
+    for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
+      const rowData = rawRows[i];
+      // Abaikan baris jika semuanya kosong
+      if (rowData.every(cell => cell === '')) continue;
+      
+      const obj = {};
+      actualHeaders.forEach((head, idx) => {
+        if (head) obj[head] = rowData[idx];
+      });
+      rows.push(obj);
     }
 
     parsedEntries = rows.map((row, idx) => validateRow(row, idx));
@@ -129,21 +157,63 @@ function pad2(n) {
 }
 
 function parseDateCell(value) {
-  let d = null;
   if (typeof value === 'string' && value.trim() !== '') {
     const trimmed = value.trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-      return trimmed;
+    
+    // 1. Coba parse format YYYY-MM-DD atau YYYY/MM/DD secara langsung menggunakan Regex
+    const matchYMD = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (matchYMD) {
+      return `${matchYMD[1]}-${pad2(parseInt(matchYMD[2], 10))}-${pad2(parseInt(matchYMD[3], 10))}`;
     }
-    d = new Date(trimmed);
-  } else if (value instanceof Date) {
-    d = value;
-  }
-  if (!d || isNaN(d.getTime())) return null;
 
-  // Tambahkan 12 jam untuk mengompensasi pergeseran zona waktu (timezone drift/Batavia time offset sejak 1900)
-  const adjusted = new Date(d.getTime() + 12 * 60 * 60 * 1000);
-  return `${adjusted.getFullYear()}-${pad2(adjusted.getMonth() + 1)}-${pad2(adjusted.getDate())}`;
+    // 2. Coba parse format DD-MM-YYYY atau DD/MM/YYYY secara langsung menggunakan Regex
+    const matchDMY = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (matchDMY) {
+      return `${matchDMY[3]}-${pad2(parseInt(matchDMY[2], 10))}-${pad2(parseInt(matchDMY[1], 10))}`;
+    }
+
+    // 3. Coba parse format teks seperti "Saturday, 01 August 2026" atau "01 Agustus 2026"
+    const matchText = trimmed.match(/(?:[A-Za-z]+,\s*)?(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+    if (matchText) {
+      const d = parseInt(matchText[1], 10);
+      const mStr = matchText[2].toLowerCase();
+      const y = parseInt(matchText[3], 10);
+      
+      const months = {
+        jan: 1, januari: 1, january: 1,
+        feb: 2, februari: 2, february: 2,
+        mar: 3, maret: 3, march: 3,
+        apr: 4, april: 4,
+        mei: 5, may: 5,
+        jun: 6, juni: 6, june: 6,
+        jul: 7, juli: 7, july: 7,
+        agu: 8, ags: 8, agustus: 8, august: 8,
+        sep: 9, september: 9,
+        okt: 10, oktober: 10, oct: 10, october: 10,
+        nov: 11, november: 11,
+        des: 12, desember: 12, dec: 12, december: 12
+      };
+      
+      const m = months[mStr] || months[mStr.substring(0, 3)];
+      if (m) return `${y}-${pad2(m)}-${pad2(d)}`;
+    }
+
+    // Jika format string tidak standar, fallback menggunakan new Date dan ambil UTC
+    // Catatan: Tambahkan ' UTC' agar JS tidak mengubahnya menjadi timezone lokal
+    const d = new Date(trimmed + ' UTC');
+    if (!isNaN(d.getTime())) {
+      return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+    }
+    return null;
+  }
+  
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) return null;
+    // Mengambil komponen tanggal murni UTC (bebas pergeseran timezone lokal)
+    return `${value.getUTCFullYear()}-${pad2(value.getUTCMonth() + 1)}-${pad2(value.getUTCDate())}`;
+  }
+
+  return null;
 }
 
 function parseTimeCell(value) {
