@@ -25,6 +25,16 @@ if (window.location.hash === '#fullscreen') {
 
 if (els.btnMaximize) {
   els.btnMaximize.addEventListener('click', () => {
+    // Simpan state saat ini ke localStorage sebelum membuka tab baru
+    const state = {
+      taskList,
+      parsedEntries,
+      activeTabId,
+      existingEntriesMap,
+      connectStatusText: els.connectStatus ? els.connectStatus.textContent : '',
+      connectStatusClass: els.connectStatus ? els.connectStatus.className : '',
+    };
+    localStorage.setItem('maximize_state', JSON.stringify(state));
     chrome.tabs.create({ url: chrome.runtime.getURL('popup/popup.html#fullscreen') });
   });
 }
@@ -664,3 +674,40 @@ document.addEventListener('change', (e) => {
     renderPreview();
   }
 });
+
+// Restore state jika di-maximize dari popup ke tab baru
+if (window.location.hash === '#fullscreen') {
+  const savedStateStr = localStorage.getItem('maximize_state');
+  if (savedStateStr) {
+    try {
+      const savedState = JSON.parse(savedStateStr);
+      localStorage.removeItem('maximize_state'); // Hapus segera setelah dibaca
+
+      if (savedState) {
+        taskList = savedState.taskList || [];
+        parsedEntries = savedState.parsedEntries || [];
+        activeTabId = savedState.activeTabId || null;
+        existingEntriesMap = savedState.existingEntriesMap || {};
+
+        if (els.connectStatus) {
+          els.connectStatus.textContent = savedState.connectStatusText || 'Belum dicek';
+          els.connectStatus.className = savedState.connectStatusClass || 'status status-pending';
+        }
+
+        // Tampilkan elemen UI sesuai data yang di-restore
+        if (taskList.length > 0) {
+          renderTaskList();
+          if (els.stepTaskList) els.stepTaskList.classList.remove('hidden');
+          if (els.stepUpload) els.stepUpload.classList.remove('hidden');
+        }
+
+        if (parsedEntries.length > 0) {
+          renderPreview();
+          if (els.stepPreview) els.stepPreview.classList.remove('hidden');
+        }
+      }
+    } catch (e) {
+      console.error('Gagal me-restore state:', e);
+    }
+  }
+}

@@ -42,6 +42,10 @@ header .subtitle { font-size: 12px; color: #666; margin: 0 0 16px; }
   font-size: 11px;
 }
 
+.required-hint {
+  color: #b3261e;
+}
+
 .status {
   font-size: 13px;
   padding: 6px 10px;
